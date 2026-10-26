@@ -14,7 +14,13 @@ import json
 from pathlib import Path, PurePosixPath
 import sys
 
-BANNED_SUFFIXES = {'.pdf', '.apk', '.aab', '.jks', '.keystore', '.p12', '.pem', '.key', '.env', '.jpg', '.jpeg'}
+BANNED_SUFFIXES = {
+    '.pdf', '.apk', '.aab', '.jks', '.keystore', '.p12', '.pem', '.key',
+    '.env', '.jpg', '.jpeg',
+    # Backups, databases and archives can conceal private texts or credentials.
+    '.zip', '.7z', '.rar', '.tar', '.gz', '.db', '.sqlite', '.sqlite3',
+    '.pfx', '.p8', '.asc', '.gpg', '.kdbx', '.bak',
+}
 BANNED_PARTS = {'.git', 'private', '__pycache__', 'build', 'outputs', 'screenshots', 'downloads'}
 BANNED_FILENAMES = {
     'local.properties', 'key.properties', 'keystore.properties',
