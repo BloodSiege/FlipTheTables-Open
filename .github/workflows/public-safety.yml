@@ -2,6 +2,7 @@ name: Public workspace check
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
 permissions:
   contents: read
@@ -10,6 +11,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Run offline public gate regression tests
+        run: python3 -m unittest discover -s tests -p 'test_public_source_gate.py' -v
       - name: Verify public-only repository contents
         run: |
           python3 - <<'PY'
