@@ -96,6 +96,26 @@ class PublicSourceGateTests(unittest.TestCase):
         with self.assertRaises(gate.GateError):
             gate.validate(self.root)
 
+    def test_repeated_separator_manifest_alias_blocks(self):
+        # An alias of an already-counted file must not pad the manifest count.
+        self.contents['web//app.js'] = self.contents['web/app.js']
+        self._manifest()
+        with self.assertRaisesRegex(gate.GateError, 'Noncanonical export path'):
+            gate.validate(self.root)
+
+    def test_dot_component_manifest_alias_blocks(self):
+        self.contents['web/./app.js'] = self.contents['web/app.js']
+        self._manifest()
+        with self.assertRaisesRegex(gate.GateError, 'Noncanonical export path'):
+            gate.validate(self.root)
+
+    def test_backslash_manifest_path_blocks(self):
+        # A backslash is a filename character on Linux, not a separator.
+        self.contents['web\\shadow.js'] = b'fixture'
+        self._write_fixture()
+        with self.assertRaisesRegex(gate.GateError, 'Noncanonical export path'):
+            gate.validate(self.root)
+
     def test_private_library_descriptor_blocks_even_when_rehashed(self):
         self.contents['web/private-library.js'] = b'window.FTT_PRIVATE_PACKS = ["synthetic"];\n'
         self._write_fixture()
