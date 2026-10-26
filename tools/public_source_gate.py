@@ -34,8 +34,22 @@ class GateError(ValueError):
     pass
 
 
+def checked_path(root: Path, relative: PurePosixPath) -> Path:
+    """Reject symlinked ancestors and resolved paths outside the source root."""
+    candidate = root.joinpath(*relative.parts)
+    for depth in range(1, len(relative.parts) + 1):
+        if root.joinpath(*relative.parts[:depth]).is_symlink():
+            raise GateError(f'Symlinked public source component: {relative}')
+    try:
+        candidate.resolve(strict=True).relative_to(root)
+    except (OSError, ValueError, RuntimeError) as exc:
+        raise GateError(f'Public source path escapes root or is missing: {relative}') from exc
+    return candidate
+
+
 def validate(root: Path) -> int:
-    source = root / 'PUBLIC_EXPORT_SHA256.json'
+    root = root.resolve(strict=True)
+    source = checked_path(root, PurePosixPath('PUBLIC_EXPORT_SHA256.json'))
     if not source.is_file() or source.is_symlink():
         raise GateError('No verified public export manifest; Android build NOT authorized')
     try:
@@ -59,7 +73,7 @@ def validate(root: Path) -> int:
             raise GateError(f'Forbidden artifact in source: {raw_path}')
         if len(digest) != 64 or any(c not in '0123456789abcdef' for c in digest):
             raise GateError(f'Invalid SHA-256 digest: {raw_path}')
-        candidate = root.joinpath(*path.parts)
+        candidate = checked_path(root, path)
         if not candidate.is_file() or candidate.is_symlink():
             raise GateError(f'Missing or symlinked export: {raw_path}')
         actual = hashlib.sha256(candidate.read_bytes()).hexdigest()
@@ -67,15 +81,17 @@ def validate(root: Path) -> int:
             raise GateError(f'Export checksum mismatch: {raw_path}')
 
     for item in root.rglob('*'):
-        if '.git' in item.parts or '__pycache__' in item.parts:
-            continue
-        if not item.is_file():
-            continue
         relative = item.relative_to(root).as_posix()
+        if '.git' in PurePosixPath(relative).parts:
+            continue
         if item.is_symlink():
             raise GateError(f'Unexpected symlink: {relative}')
         if any(p in BANNED_PARTS for p in PurePosixPath(relative).parts):
             raise GateError(f'Private/generated directory: {relative}')
+        if item.is_dir():
+            continue
+        if not item.is_file():
+            raise GateError(f'Unexpected non-file in public source: {relative}')
         if item.suffix.lower() in BANNED_SUFFIXES:
             raise GateError(f'Forbidden public file: {relative}')
         if relative not in entries and relative not in EXTRA_PUBLIC_PATHS:
