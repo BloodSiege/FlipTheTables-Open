@@ -172,6 +172,24 @@ class PublicSourceGateTests(unittest.TestCase):
         with self.assertRaisesRegex(gate.GateError, 'Forbidden artifact'):
             gate.validate(self.root)
 
+    def test_archived_private_material_blocks_even_when_rehashed(self):
+        self.contents['web/backup.zip'] = b'FAKE-ARCHIVE-CONTENT'
+        self._write_fixture()
+        with self.assertRaisesRegex(gate.GateError, 'Forbidden artifact'):
+            gate.validate(self.root)
+
+    def test_database_file_blocks_even_when_rehashed(self):
+        self.contents['web/notes.sqlite3'] = b'FAKE-DATABASE-CONTENT'
+        self._write_fixture()
+        with self.assertRaisesRegex(gate.GateError, 'Forbidden artifact'):
+            gate.validate(self.root)
+
+    def test_credential_backup_blocks_even_when_rehashed(self):
+        self.contents['android/owner-signing.PFX'] = b'FAKE-CERTIFICATE-CONTENT'
+        self._write_fixture()
+        with self.assertRaisesRegex(gate.GateError, 'Forbidden artifact'):
+            gate.validate(self.root)
+
     def test_mixed_case_private_directory_blocks_even_when_rehashed(self):
         self.contents['web/PRIVATE/synthetic.txt'] = b'fixture'
         self._write_fixture()
