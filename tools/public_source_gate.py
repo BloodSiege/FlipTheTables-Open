@@ -67,6 +67,10 @@ def validate(root: Path) -> int:
         if not isinstance(raw_path, str) or not isinstance(digest, str):
             raise GateError('Invalid export inventory entry')
         path = PurePosixPath(raw_path)
+        # PurePosixPath silently normalizes repeated separators and '.' segments.
+        # Require canonical names so aliases cannot inflate inventory counts.
+        if not raw_path or '\\' in raw_path or raw_path != path.as_posix():
+            raise GateError(f'Noncanonical export path: {raw_path}')
         if path.is_absolute() or any(p in ('..', '.') or p in BANNED_PARTS for p in path.parts):
             raise GateError(f'Unsafe export path: {raw_path}')
         if path.suffix.lower() in BANNED_SUFFIXES:
