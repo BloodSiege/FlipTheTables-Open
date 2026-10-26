@@ -148,5 +148,35 @@ class PublicSourceGateTests(unittest.TestCase):
             gate.validate(self.root)
 
 
+    def test_dot_env_blocks_even_when_rehashed(self):
+        self.contents['android/.env'] = b'FAKE_SECRET=synthetic\n'
+        self._write_fixture()
+        with self.assertRaisesRegex(gate.GateError, 'Forbidden artifact'):
+            gate.validate(self.root)
+
+    def test_environment_variant_blocks_even_when_rehashed(self):
+        self.contents['android/.env.production'] = b'FAKE_SECRET=synthetic\n'
+        self._write_fixture()
+        with self.assertRaisesRegex(gate.GateError, 'Forbidden artifact'):
+            gate.validate(self.root)
+
+    def test_local_properties_blocks_even_when_rehashed(self):
+        self.contents['android/local.properties'] = b'sdk.dir=/synthetic\n'
+        self._write_fixture()
+        with self.assertRaisesRegex(gate.GateError, 'Forbidden artifact'):
+            gate.validate(self.root)
+
+    def test_google_services_config_blocks_even_when_rehashed(self):
+        self.contents['android/app/google-services.json'] = b'{"synthetic":true}\n'
+        self._write_fixture()
+        with self.assertRaisesRegex(gate.GateError, 'Forbidden artifact'):
+            gate.validate(self.root)
+
+    def test_mixed_case_private_directory_blocks_even_when_rehashed(self):
+        self.contents['web/PRIVATE/synthetic.txt'] = b'fixture'
+        self._write_fixture()
+        with self.assertRaisesRegex(gate.GateError, 'Forbidden artifact'):
+            gate.validate(self.root)
+
 if __name__ == '__main__':
     unittest.main()

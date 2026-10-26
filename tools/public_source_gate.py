@@ -16,6 +16,11 @@ import sys
 
 BANNED_SUFFIXES = {'.pdf', '.apk', '.aab', '.jks', '.keystore', '.p12', '.pem', '.key', '.env', '.jpg', '.jpeg'}
 BANNED_PARTS = {'.git', 'private', '__pycache__', 'build', 'outputs', 'screenshots', 'downloads'}
+BANNED_FILENAMES = {
+    'local.properties', 'key.properties', 'keystore.properties',
+    'signing.properties', 'google-services.json', 'service-account.json',
+    'credentials.json', '.npmrc', '.pypirc', '.netrc', 'id_rsa', 'id_ed25519',
+}
 REQUIRED = {
     'VERSION.txt', 'EDITION.txt', 'web/index.html', 'web/app.js',
     'web/private-library.js', 'web/versions.js', 'web/version.txt',
@@ -32,6 +37,20 @@ EXTRA_PUBLIC_PATHS = {
 
 class GateError(ValueError):
     pass
+
+
+def forbidden_artifact(path: PurePosixPath) -> bool:
+    """Block common private config/credential names, regardless of case."""
+    parts = tuple(part.casefold() for part in path.parts)
+    name = parts[-1] if parts else ''
+    return (
+        any(part in BANNED_PARTS for part in parts)
+        or name in BANNED_FILENAMES
+        or name == '.env'
+        or name.startswith('.env.')
+        or name.startswith('firebase-adminsdk')
+        or path.suffix.casefold() in BANNED_SUFFIXES
+    )
 
 
 def checked_path(root: Path, relative: PurePosixPath) -> Path:
@@ -71,9 +90,9 @@ def validate(root: Path) -> int:
         # Require canonical names so aliases cannot inflate inventory counts.
         if not raw_path or '\\' in raw_path or raw_path != path.as_posix():
             raise GateError(f'Noncanonical export path: {raw_path}')
-        if path.is_absolute() or any(p in ('..', '.') or p in BANNED_PARTS for p in path.parts):
+        if path.is_absolute() or any(p in ('..', '.') for p in path.parts):
             raise GateError(f'Unsafe export path: {raw_path}')
-        if path.suffix.lower() in BANNED_SUFFIXES:
+        if forbidden_artifact(path):
             raise GateError(f'Forbidden artifact in source: {raw_path}')
         if len(digest) != 64 or any(c not in '0123456789abcdef' for c in digest):
             raise GateError(f'Invalid SHA-256 digest: {raw_path}')
@@ -90,13 +109,13 @@ def validate(root: Path) -> int:
             continue
         if item.is_symlink():
             raise GateError(f'Unexpected symlink: {relative}')
-        if any(p in BANNED_PARTS for p in PurePosixPath(relative).parts):
+        if any(p.casefold() in BANNED_PARTS for p in PurePosixPath(relative).parts):
             raise GateError(f'Private/generated directory: {relative}')
         if item.is_dir():
             continue
         if not item.is_file():
             raise GateError(f'Unexpected non-file in public source: {relative}')
-        if item.suffix.lower() in BANNED_SUFFIXES:
+        if forbidden_artifact(PurePosixPath(relative)):
             raise GateError(f'Forbidden public file: {relative}')
         if relative not in entries and relative not in EXTRA_PUBLIC_PATHS:
             raise GateError(f'Unexpected file outside reviewed export: {relative}')
